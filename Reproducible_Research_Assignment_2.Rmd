@@ -1,0 +1,391 @@
+# Most Harmfull Events Across United States From 1950 To 2011
+
+## Synopsis
+
+In this report we explore U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. This database tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage. From these data, we found out, that Tornado is the most harmful type of event with respect to population health. We also saw that while Excessive Heat was the third most harmful event in 1991-2000, it became the second most harmful event type in 2001-2011. In terms of economic consequences, Flood is the most harmful type of event, followed by Hurricane/Typhoon and Tornado. 
+
+## Data Processing
+
+Here is a description of the steps taken to download data, read data into R and preprocess it.  
+1. Create a directory which will hold the NOAA Storm Database file  
+2. Download data from the web  
+3. Read data into R using read.csv. This may take several minutes (no need to unzip)  
+
+```{r data_processing, cache = TRUE}
+# 1
+if(!dir.exists("./NOAA_Storm_Database")){dir.create("./NOAA_Storm_Database")}
+
+# 2
+fileUrl <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+download.file(fileUrl, destfile = "./NOAA_Storm_Database/storm_data.csv.bz2", method = "curl")
+
+# 3
+storm_data <- read.csv("./NOAA_Storm_Database/storm_data.csv.bz2")
+```
+
+We can now look at the first few rows of the dataset (there are `r nrow(storm_data)` rows in the dataset). We also look at the column names.
+```{r head}
+dim(storm_data)
+head(storm_data[,1:8])
+names(storm_data)
+```
+
+## Results
+
+We want to answer two questions. Here is the first one.  
+
+###Across the United States, which types of events (as indicated in the 𝙴𝚅𝚃𝚈𝙿𝙴 variable) are most harmful with respect to population health?
+
+Step_by_step description of analysis which is followed by the corresponding code.
+
+1. For this part we only need 4 columns from the dataset (**BGN_DATE**, **EVTYPE**, **FATALITIES**, **INJURIES**). Let's sumbset the data frame to have only these 4 columns (using **dplyr** package).  
+2. Using **lubridate** package convert the **BGN_DATE** column to **POSIXct**.  
+3. Add a new column to the data frame called **YEAR** to have only the years from the **BGN_DATE** column.  
+4. We know that there are fewer records in earlyer years so we will create a new column which we will call **INTERVAL_YEAR**. This new column divides **YEAR** column into several intervals to allow us observe the more recent years separately from the earlyer years.    
+5. Make two plots.  
+* **PANEL PLOT** of top 5 types of events per interval.  
+    a. Add two columns to our data_frame which count total number of event types and total fatalities and injuries in each interval. From these columns create a data frame with only 4 rows (one row for each interval totals) which we will later use to annotate our plot. We are going to compare every type of event in each interval against these interval totals.  
+    b. Create a new column called **PERCENT**. For each interval this column will have the percentages of the number of fatalities and injuries. From **PERCENT** we will create another column **PERCENT_CHAR** which is the character representation of **PERCENT** (with "%" added at the end of each number).   
+    c. Create a data frame called  **health_df_top_5** which will have only the top 5 events for each interval.
+* **SINGLE PLOT** of top 10 types of events that caused fatalities and injuries during 1950-2011.  
+    a. Create a data frame (**health_df_total**) which will have total number of fatalities and injuries per event type.  
+    b. Calculate total number of event types (1 number), as well as total number of fatalities and injuries (1 number). We will use these numbers to annotate our plot. And we will compare fatalities and injuries of each of the 10 event types to this total number of fatalities and injuries.   
+    c. In the same way as above, create **PERCENT** and **PERCENT_CHAR** columns to make our plot more informative.  
+ 
+```{r harmful_to_health_1, cache = TRUE}
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(scales)
+
+# 1
+health_df <- storm_data %>% select(BGN_DATE, EVTYPE, FATALITIES, INJURIES)
+dim(health_df)
+head(health_df, 3)
+
+# 2
+health_df$BGN_DATE <- mdy_hms(as.character(health_df$BGN_DATE))
+dim(health_df)
+head(health_df, 3)
+
+# 3
+health_df <- health_df %>% mutate(YEAR = year(health_df$BGN_DATE))
+dim(health_df)
+head(health_df, 3)
+
+# 4
+health_df <- health_df %>% 
+        mutate(INTERVAL_YEAR = cut(YEAR, 
+                                   breaks = c(1950, 1970, 1990, 2000, 2011),
+                                   labels = c("1950-1970", "1971-1990", "1991-2000", "2001-2011"),
+                                   include.lowest = TRUE))
+dim(health_df)
+head(health_df, 3)
+
+
+
+# 5
+
+# Panel Plot
+
+# a
+health_df_interval_event <- health_df %>%
+        group_by(INTERVAL_YEAR, EVTYPE) %>%
+        summarize(FATALITY_INJURY = sum(FATALITIES, INJURIES))
+
+health_df_interval_event_count <- health_df_interval_event %>%
+        group_by(INTERVAL_YEAR) %>%
+        mutate(count_event_type = length(EVTYPE),
+               count_fatal_inj = sum(FATALITY_INJURY))
+dim(health_df_interval_event_count)
+head(health_df_interval_event_count, 3)
+
+counts_df <- health_df_interval_event_count %>%
+        select(INTERVAL_YEAR, count_event_type, count_fatal_inj) %>%
+        group_by(INTERVAL_YEAR) %>%
+        filter(row_number() <= 1) 
+dim(counts_df)
+counts_df
+        
+# b
+health_df_interval_event_count_percentage <- health_df_interval_event_count %>%
+        group_by(INTERVAL_YEAR, EVTYPE) %>%
+        mutate(PERCENT = FATALITY_INJURY * 100 / count_fatal_inj) %>%
+        mutate(PERCENT_CHAR = paste(as.character(round(PERCENT, digits = 2)), "%"))
+dim(health_df_interval_event_count_percentage)
+head(health_df_interval_event_count_percentage, 3)
+        
+# c
+health_df_top_5 <- health_df_interval_event_count_percentage %>% 
+        group_by(INTERVAL_YEAR) %>% 
+        arrange(INTERVAL_YEAR, desc(FATALITY_INJURY)) %>% 
+        top_n(n = 5, wt = FATALITY_INJURY)
+dim(health_df_top_5)
+head(health_df_top_5)
+```
+
+We have everything we need to make the panel plot.
+```{r panel_plot, cache = TRUE}
+# The plot
+div = 1000
+ggplot(health_df_top_5, aes(x = EVTYPE, y = FATALITY_INJURY/div, fill = EVTYPE))+
+        facet_wrap(~INTERVAL_YEAR, nrow = 2, scales = "free") +
+        geom_bar(stat = "Identity") +
+        geom_text(aes(label = PERCENT_CHAR), vjust = -0.4, size = 3.2) +
+        labs(title = "First 5 Types of Events by the Number of \nFatalities and Injuries Per Interval\n(And Their Portions in Total Fatalities and Injuries for Each Interval)", 
+             x = "", y = "Fatality + Injury (Thousands)") +
+        theme(legend.position = "none") +
+        theme(axis.text.x = element_text(angle = 40, hjust = 1, vjust = 1, size = 8, color = rgb(0.4,0.2,0.2))) +
+        theme(axis.title.y = element_text(color = rgb(0.3,0.3,0.3))) +
+        theme(plot.title = element_text(color = rgb(0.3,0.3,0.3), size = 10)) +
+        scale_y_continuous(limits = c(min(health_df_top_5$FATALITY_INJURY),
+                                      max(health_df_top_5$FATALITY_INJURY)+20000)/div) +
+        annotate("text", x = 0.5, y = 55, size = 2.8, hjust = "inward", vjust = "inward",
+                 color = rgb(0.4,0.2,0.2), fontface = 2,
+                 label = paste("Overall", as.character(counts_df$count_fatal_inj),
+                               "deaths and injuries\nby all",
+                               as.character(counts_df$count_event_type), 
+                               "types of events"))
+```
+
+
+From the plot above we clearly see that in all 4 interval the most harmful event type is Tornado. The second harmful event is different from interval to interval. First of all, we notice that in 1950-1970 and 1971-1990 only three types of events were recorded (and that is why the sum of percentages is 100%).  
+**1950-1970** - Tornado is the only winner in terms of human health harms.  
+**1971-1990** - Tornado is the first harmful event type. Second harmful event type is Tstm Wind (which is Marine Thunderstorm Wind, by the way, as we can see in  [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)). And Hail is the third harmful event type with respect to population health.  
+
+In 1991-2000 and 2001-2011 there are many types of events recorded (that is why the sum of percentages is not equal to 100%, as only 5 event types are shown on the plot).  
+
+**1991-2000** - Tornado is the first harmful event type, Flood is the second. Then come Excessive Heat, Tstm Wind and Lightning.  
+**2001-2011** - Tornado is again the first harmful event type, but this time Excessive Heat goes up one level from the previous decade and is now the second harmful event (global warming?). And then come Lightning, Tstm Wind, and Thunderstorm Wind.  
+
+We can now move on to see the picture of these 4 intervals taken togetheer.  
+
+```{r harmful_to_health_2, cache = TRUE}
+# Single Plot
+
+# a
+health_df_total <- health_df %>% 
+        group_by(EVTYPE) %>%
+        summarize(FATALITY_INJURY = sum(FATALITIES, INJURIES)) %>%
+        arrange(desc(FATALITY_INJURY))
+
+# b
+count_event_types <- nrow(health_df_total)
+count_fatal_injur <- sum(health_df_total$FATALITY_INJURY)
+
+# c
+health_df_total <- health_df_total %>%
+        mutate(PERCENT = FATALITY_INJURY * 100/count_fatal_injur) %>%
+        mutate(PERCENT_CHAR = paste(as.character(round(PERCENT, digits = 2)),"%"))
+dim(health_df_total)
+head(health_df_total, 3)
+```
+
+And we have everything needed to see the most harmful events with respect to population health in one single plot.
+
+````{r single_plot, cache = TRUE}
+# The plot
+div = 1000
+ggplot(health_df_total[1:10,], aes(x = EVTYPE, y = FATALITY_INJURY/div, fill = EVTYPE)) +
+        geom_bar(stat = "identity") +
+        geom_text(aes(label = PERCENT_CHAR), vjust = -0.5, size = 3.5) +
+        labs(title = "First 10 Types of Events By The Number of \nFatalities and Injuries During 1950-2011\n(And Their Portions In Total Fatalities And Injuries)") +
+        labs(x = "") +
+        labs(y = "Fatality + Injury (Thousands)") +
+        theme_minimal() +
+        theme(legend.position = "none") +
+        theme(axis.text.x = element_text(angle = 40, hjust = 0.9, vjust = 1, size = 9, color = rgb(0.4,0.2,0.2))) +
+        theme(axis.title.y = element_text(color = colorRampPalette(c("green", "red"))(15)[9])) +
+        theme(plot.title = element_text(color = colorRampPalette(c("green", "red"))(15)[9], size = 12)) +
+        scale_y_continuous(limits = c(min(health_df_total$FATALITY_INJURY),
+                                      max(health_df_total$FATALITY_INJURY)+10000)/div) +
+        annotate("text", x = 4, y = 90, color = rgb(0.4,0.2,0.2), fontface = 2,
+                 label = paste("There are", as.character(count_fatal_injur), 
+                               "fatalities and injuries \ncaused by all", 
+                                as.character(count_event_types), "types of events"))
+```
+
+As we would guess Tornado is the first harmful event, Excessive Heat is scaringly the second harmful event, then come Tstm Wind, Flood, Lightning and the rest. We also see that there are many more types of events that are not shown on the plot and among all these 985 types of events Tornado causes a gigentic harm to population health.  
+
+Now let's move on to the second question.
+
+### Across the United States, which types of events have the greatest economic consequences?
+
+To answer this question we will make a single plot with top 10 harmful event types that have the greatest economic consequences. We do it in three steps.  
+
+* Creating the initial data frame called **economic_df**  
+* Processing **economic_df** data frame  
+* Making the plot  
+
+#### Creating the initial data frame called **economic_df**  
+
+We need 6 columns (EVTYPE, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP, REMARKS).  
+```{r economic_consequences, cache = TRUE}
+economic_df <- storm_data %>%
+        select(EVTYPE, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP, REMARKS)
+dim(economic_df)
+head(economic_df, 3)
+str(economic_df)
+```
+
+#### Processing economic_df data frame  
+
+The two columns **PROPDMGEXP** and **CROPDMGEXP** that we have selected are the alphabetical characters signifying the magnitudes of the numbers in **PROPDMG** and **CROPDMG**. "Alphabetical characters used to signify magnitude include **"K"** for thousands, **"M"** for millions, and **"B"** for billions" as explained in section 2.7 of [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf). But we notice that in these columns there are other values as well. We need to do something about these other values. Let's deeg a little bit.  
+
+1. **Dealing with 0s**  
+    a. Make **PROPDMGEXP** and **CROPDMGEXP** from factor to character (also change REMARKS column to character as we will need it later).  
+    b. We can start simplifying **PROPDMGEXP** by first looking at the values of **PROPDMGEXP** when **PROPDMG** is equal to zero. We create a new data frame **economic_1** that has only rows where **PROPDMG == 0**. **PROPDMGEXP** column of **economic_1** shows what values correspond to the 0s of **PROPDMG**. We definitely need to change these values to be equal to 0.  
+    c. Wherever **PROPDMG** is 0 in **economic_df** data frame, set the value of **PROPDMGEXP** to 0. Do the same with **CROPDMGEXP** wherever **CROPDMG** is equal to 0.  
+    d. We now hope that we will have fewer rows to worry about. And we are right. Let's check how many rows of **PROPDMGEXP** and **CROPDMGEXP** are left that have values other then "K", "M", "B", and "0".  
+```{r economic_consequences_processing_1, cache = TRUE}
+# 1
+# 1_a
+economic_df$PROPDMGEXP <- as.character(economic_df$PROPDMGEXP)
+economic_df$CROPDMGEXP <- as.character(economic_df$CROPDMGEXP)
+economic_df$REMARKS <- as.character(economic_df$REMARKS)
+
+# 1_b
+economic_1 <- economic_df[economic_df$PROPDMG == 0,]
+economic_1 %>% group_by(PROPDMGEXP) %>% summarize(count = length(PROPDMGEXP))
+
+# 1_c
+economic_df <- within(economic_df, PROPDMGEXP[PROPDMG == 0] <- "0")
+economic_df <- within(economic_df, CROPDMGEXP[CROPDMG == 0] <- "0")
+
+# 1_d
+economic_2 <- economic_df[grep("[^0KMB]", economic_df$PROPDMGEXP),]
+economic_3 <- economic_df[grep("[^0KMB]", economic_df$CROPDMGEXP),]
+dim(economic_2)
+dim(economic_3)
+```
+2. **Dealing with non-0s**  
+    a. First, let's look at the unique values in **PROPDMGEXP** and **CROPDMGEXP** that are not "K", "M", "B" or "0", and thus need to be changed. We see **`r length(unique(economic_2$PROPDMGEXP))`** values of **PROPDMGEXP** and **`r length(unique(economic_3$CROPDMGEXP))`** values of **CROPDMGEXP** that need our attention.  
+    b. **PROPDMGEXP** - Let's explore "m" as it may indicate million entered in lowercas instead of an uppercase "M". Then we will look at the rest of the values one by one. We will find **REMARKS** column handy for this task. Also, we can read the **Appendix B** of [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf) to get the idea of property damage estimates.  
+        * **"m"** - By reading the remarks column and Appendix B, we can definitely say that "m" stands for millions. Change "m" of **PROPDMGEXP** with "M" in **economic_df**.  
+        * **"H" and "h"** - Maybe they stand for hundreds? Again, let's read remarks. They really seem to stand for hundreds. Change "H" and "h" of **PROPDMGEXP** to "100" in economic_df.  
+        * To change **"7"**, **"6"**, **"5"**, **"4"**, **"3"**, **"2"**, **"+"**, **"-"** values, we need to do a lot of guessing. So we will dare to ignore these values (hopefully, we will not loose a lot of information as there are only few rows with these values). In other words, we will replace these values with 0s. To do all replacements with one function call we will create a function called **mgsub** ("multiple gsub"") as done in the post on Stackoveflow ([link to the post on Stackoverflow](https://stackoverflow.com/questions/15253954/replace-multiple-arguments-with-gsub)).  
+    c. **CROPDMGEXP** - We now look at the values of **CROPDMGEXP** and do the necessary replacements. Again, we use **REMARKS** column. Looks like "m" stands for million and "k" stands for thousand. In case of "k", **REMARKS** column has many empty entries but from the property damage columns we can guess that it is a damage to the crop in thousands. So we will replace "k" and "m" of **CROPDMGEXP** with "K" and "M" in **economic_df** data frame.  
+    d. We are almost finished with processing columns **PROPDMGEXP** and **CROPDMGEXP**. Let's look at the values that each column has and their counts. We see emtpy entries. These empty entries are the last item we are going to worry about. We'll look at columns **PROPDMG** and **REMARKS** when **PROPDMGEXP** is empty, as well as **CROPDMG** and **REMARKD** when **CROPDMGEXP** is empty. We see that **REMARKS** column has descriptions of damages. So the least we can do is to change these empty entries in **PROPDMGEXP** and **CROPDMGEXP** with "K" to make these damages appear in our analysis. And that may be the exact amount of the damage but we will be careful, anyway, and ignore the rows where no remarks are made. In short, we change empty entries with "K"s when there are remarks and with "0"s when remarks are missing (missing remarks are noted by two spaces: "  ").  
+    e. We will have a final look at the values in **PROPDMGEXP** and **CROPDMGEXP** to make sure we are only left with "K", "M", "B", "0" and "100". We can now change "K" to "1000", "M" to "1000000", "B" to "1000000000" and convert these columns from character to numeric.  
+``` {r economic_consequences_processing_2, cache = TRUE}
+# 2
+# 2_a
+unique(economic_2$PROPDMGEXP)
+unique(economic_3$CROPDMGEXP)
+
+# 2_b
+economic_2 %>% group_by(PROPDMGEXP) %>% summarise(count = length(PROPDMGEXP))
+economic_2[economic_2$PROPDMGEXP == "m",]
+economic_2[economic_2$PROPDMGEXP == "H",]
+economic_2[economic_2$PROPDMGEXP == "H",]$REMARKS
+economic_2[economic_2$PROPDMGEXP == "h",]
+
+economic_df$PROPDMGEXP <- gsub("m", "M", economic_df$PROPDMGEXP)
+economic_df$PROPDMGEXP <- gsub("H", "100", economic_df$PROPDMGEXP)
+economic_df$PROPDMGEXP <- gsub("h", "100", economic_df$PROPDMGEXP)
+
+mgsub <- function(pattern, replacement, x, ...) {
+  if (length(pattern)!=length(replacement)) {
+    stop("pattern and replacement do not have the same length.")
+  }
+  result <- x
+  for (i in 1:length(pattern)) {
+    result <- gsub(pattern[i], replacement[i], result, ...)
+  }
+  result
+}
+
+economic_df$PROPDMGEXP <- mgsub(c("2", "3", "4", "5", "6", "7", "\\+", "\\-"), 
+                                c("0", "0", "0", "0", "0", "0", "0", "0"), 
+                                economic_df$PROPDMGEXP)
+
+# 2_c
+economic_3[economic_3$CROPDMGEXP == "m",]
+economic_3[economic_3$CROPDMGEXP == "k",]
+
+economic_df$CROPDMGEXP <- gsub("m", "M", economic_df$CROPDMGEXP)
+economic_df$CROPDMGEXP <- gsub("k", "K", economic_df$CROPDMGEXP)
+
+# 2_d
+economic_df %>% group_by(PROPDMGEXP) %>% summarize(count = length(PROPDMGEXP))
+economic_df %>% group_by(CROPDMGEXP) %>% summarize(count = length(CROPDMGEXP))
+
+cbind(economic_df[economic_df$PROPDMGEXP == "",]$PROPDMG, 
+      economic_df[economic_df$PROPDMGEXP == "",]$REMARKS)
+cbind(economic_df[economic_df$CROPDMGEXP == "",]$CROPDMG,
+      economic_df[economic_df$CROPDMGEXP == "",]$REMARKS)
+
+economic_df <- within(economic_df, 
+                      PROPDMGEXP[PROPDMGEXP == ""][REMARKS[PROPDMGEXP == ""] == "  "] <- "0")
+economic_df <- within(economic_df,
+                      CROPDMGEXP[CROPDMGEXP == ""][REMARKS[CROPDMGEXP == ""] == "  "] <- "0")
+
+economic_df <- within(economic_df, 
+                      PROPDMGEXP[PROPDMGEXP == ""][REMARKS[PROPDMGEXP == ""] != "  "] <- "K")
+economic_df <- within(economic_df,
+                      CROPDMGEXP[CROPDMGEXP == ""][REMARKS[CROPDMGEXP == ""] != "  "] <- "K")
+
+# 2_e
+economic_df %>% group_by(PROPDMGEXP) %>% summarize(count = length(PROPDMGEXP))
+economic_df %>% group_by(CROPDMGEXP) %>% summarize(count = length(CROPDMGEXP))
+
+economic_df$PROPDMGEXP <- as.numeric(mgsub(c("K", "M", "B"), 
+                                c("1000", "1000000", "1000000000"), 
+                                economic_df$PROPDMGEXP))
+economic_df$CROPDMGEXP <- as.numeric(mgsub(c("K", "M", "B"), 
+                                c("1000", "1000000", "1000000000"), 
+                                economic_df$CROPDMGEXP))
+```
+
+#### Making the plot  
+
+1. Create a new data frame called **economic_plot_df** which will have combined **PROPDMG** and **CROPDMG** columns (first we will multiply **PROPDMG** with **PROPDMGEXP** and **CROPDMG** with **CROPDMGEXP**.  
+2. Count total number of event types and total number of damage to property and crop.  
+3. Create **PERCENT** and **PERCENT_CHAR** columns to make our plot more informative.  
+4. Make the plot  
+``` {r economic_preplot, cache = TRUE}
+# 1
+economic_plot_df <- economic_df %>% 
+        group_by(EVTYPE) %>%
+        summarise(PROP = sum(PROPDMG * PROPDMGEXP), CROP = sum(CROPDMG * CROPDMGEXP)) %>%
+        mutate(PROP_CROP_DMG = PROP + CROP) %>%
+        arrange(desc(PROP_CROP_DMG))
+dim(economic_plot_df)
+head(economic_plot_df, 3)
+
+# 2
+count_event_types <- nrow(economic_plot_df)
+sum_prop_crop <- sum(economic_plot_df$PROP_CROP_DMG)
+
+# 3
+economic_plot_df <- economic_plot_df %>%
+        mutate(PERCENT = PROP_CROP_DMG * 100/sum_prop_crop) %>%
+        mutate(PERCENT_CHAR = paste(as.character(round(PERCENT, digits = 2)),"%"))
+dim(economic_plot_df)
+head(economic_plot_df, 3)
+```
+
+And we can make our plot.  
+```{r economic_plot, cache = TRUE}
+# 4 plot
+div = 1000000000
+ggplot(economic_plot_df[1:10,], aes(x = EVTYPE, y = PROP_CROP_DMG/div, fill = EVTYPE)) +
+        geom_bar(stat = "identity") +
+        geom_text(aes(label = PERCENT_CHAR), vjust = -0.5, size = 3.5) +
+        labs(title = "First 10 Types of Events\nWith The Greatest Economic Consequences During 1950-2011\n(And Their Portions In Total Damage)") +
+        labs(x = "") +
+        labs(y = "Damage to Property and Crop ($ Billions)") +
+        theme_minimal() +
+        theme(legend.position = "none") +
+        theme(axis.text.x = element_text(angle = 40, hjust = 0.9, vjust = 1, size = 9, color = rgb(0.4,0.2,0.2))) +
+        theme(axis.title.y = element_text(color = colorRampPalette(c("green", "red"))(15)[9])) +
+        theme(plot.title = element_text(color = colorRampPalette(c("green", "red"))(15)[9], size = 12)) +
+        scale_y_continuous(limits = c(min(economic_plot_df$PROP_CROP_DMG),
+                                      max(economic_plot_df$PROP_CROP_DMG)+1000000000)/div) +
+        annotate("text", x = 7, y = 130, color = rgb(0.4,0.2,0.2), fontface = 2,
+                 label = paste("There was $", as.character(sum_prop_crop), 
+                               "damage \nto property and crop \ncaused by all", 
+                                as.character(count_event_types), "types of events"))
+```
+
+From the plot above we see that Flood had the greates economic consequences across the United States from 1950 to 2011. Then come Hurricane/Typhoon, Tornado, Storm Surge, and the rest.  
