@@ -11,13 +11,13 @@ Here is a description of the steps taken to download data, read data into R and 
 2. Download data from the web  
 3. Read data into R using read.csv. This may take several minutes (no need to unzip)  
 
-```{r data_processing, cache = TRUE}
+```{r data_processing, echo = TRUE}
 # 1
 if(!dir.exists("./NOAA_Storm_Database")){dir.create("./NOAA_Storm_Database")}
 
 # 2
 fileUrl <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
-download.file(fileUrl, destfile = "./NOAA_Storm_Database/storm_data.csv.bz2", method = "curl")
+if(!file.exists("./NOAA_STORM_DATABASE/storm_data.csv.bz2")) {download.file(fileUrl, destfile = "./NOAA_Storm_Database/storm_data.csv.bz2", method = "curl")}
 
 # 3
 storm_data <- read.csv("./NOAA_Storm_Database/storm_data.csv.bz2")
@@ -52,11 +52,9 @@ Step_by_step description of analysis which is followed by the corresponding code
     b. Calculate total number of event types (1 number), as well as total number of fatalities and injuries (1 number). We will use these numbers to annotate our plot. And we will compare fatalities and injuries of each of the 10 event types to this total number of fatalities and injuries.   
     c. In the same way as above, create **PERCENT** and **PERCENT_CHAR** columns to make our plot more informative.  
  
-```{r harmful_to_health_1, cache = TRUE}
+```{r harmful_to_health_1, echo = TRUE}
 library(dplyr)
 library(lubridate)
-library(ggplot2)
-library(scales)
 
 # 1
 health_df <- storm_data %>% select(BGN_DATE, EVTYPE, FATALITIES, INJURIES)
@@ -125,8 +123,10 @@ head(health_df_top_5)
 ```
 
 We have everything we need to make the panel plot.
-```{r panel_plot, cache = TRUE}
+```{r panel_plot, echo = TRUE}
 # The plot
+library(ggplot2)
+
 div = 1000
 ggplot(health_df_top_5, aes(x = EVTYPE, y = FATALITY_INJURY/div, fill = EVTYPE))+
         facet_wrap(~INTERVAL_YEAR, nrow = 2, scales = "free") +
@@ -158,10 +158,12 @@ In 1991-2000 and 2001-2011 there are many types of events recorded (that is why 
 **1991-2000** - Tornado is the first harmful event type, Flood is the second. Then come Excessive Heat, Tstm Wind and Lightning.  
 **2001-2011** - Tornado is again the first harmful event type, but this time Excessive Heat goes up one level from the previous decade and is now the second harmful event (global warming?). And then come Lightning, Tstm Wind, and Thunderstorm Wind.  
 
-We can now move on to see the picture of these 4 intervals taken togetheer.  
+We canNow wnow mon to see the picture of these 4 intervals taken togetheer.  
 
-```{r harmful_to_health_2, cache = TRUE}
+```{r harmful_to_health_2, echo = TRUE}
 # Single Plot
+library(dplyr)
+library(ggplot2)
 
 # a
 health_df_total <- health_df %>% 
@@ -183,8 +185,10 @@ head(health_df_total, 3)
 
 And we have everything needed to see the most harmful events with respect to population health in one single plot.
 
-````{r single_plot, cache = TRUE}
+````{r single_plot, echo = TRUE}
 # The plot
+library(ggplot2)
+
 div = 1000
 ggplot(health_df_total[1:10,], aes(x = EVTYPE, y = FATALITY_INJURY/div, fill = EVTYPE)) +
         geom_bar(stat = "identity") +
@@ -220,7 +224,9 @@ To answer this question we will make a single plot with top 10 harmful event typ
 #### Creating the initial data frame called **economic_df**  
 
 We need 6 columns (EVTYPE, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP, REMARKS).  
-```{r economic_consequences, cache = TRUE}
+```{r economic_consequences, echo = TRUE}
+library(dplyr)
+
 economic_df <- storm_data %>%
         select(EVTYPE, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP, REMARKS)
 dim(economic_df)
@@ -237,7 +243,9 @@ The two columns **PROPDMGEXP** and **CROPDMGEXP** that we have selected are the 
     b. We can start simplifying **PROPDMGEXP** by first looking at the values of **PROPDMGEXP** when **PROPDMG** is equal to zero. We create a new data frame **economic_1** that has only rows where **PROPDMG == 0**. **PROPDMGEXP** column of **economic_1** shows what values correspond to the 0s of **PROPDMG**. We definitely need to change these values to be equal to 0.  
     c. Wherever **PROPDMG** is 0 in **economic_df** data frame, set the value of **PROPDMGEXP** to 0. Do the same with **CROPDMGEXP** wherever **CROPDMG** is equal to 0.  
     d. We now hope that we will have fewer rows to worry about. And we are right. Let's check how many rows of **PROPDMGEXP** and **CROPDMGEXP** are left that have values other then "K", "M", "B", and "0".  
-```{r economic_consequences_processing_1, cache = TRUE}
+```{r economic_consequences_processing_1, echo = TRUE}
+library(dplyr)
+
 # 1
 # 1_a
 economic_df$PROPDMGEXP <- as.character(economic_df$PROPDMGEXP)
@@ -267,7 +275,9 @@ dim(economic_3)
     c. **CROPDMGEXP** - We now look at the values of **CROPDMGEXP** and do the necessary replacements. Again, we use **REMARKS** column. Looks like "m" stands for million and "k" stands for thousand. In case of "k", **REMARKS** column has many empty entries but from the property damage columns we can guess that it is a damage to the crop in thousands. So we will replace "k" and "m" of **CROPDMGEXP** with "K" and "M" in **economic_df** data frame.  
     d. We are almost finished with processing columns **PROPDMGEXP** and **CROPDMGEXP**. Let's look at the values that each column has and their counts. We see emtpy entries. These empty entries are the last item we are going to worry about. We'll look at columns **PROPDMG** and **REMARKS** when **PROPDMGEXP** is empty, as well as **CROPDMG** and **REMARKD** when **CROPDMGEXP** is empty. We see that **REMARKS** column has descriptions of damages. So the least we can do is to change these empty entries in **PROPDMGEXP** and **CROPDMGEXP** with "K" to make these damages appear in our analysis. And that may be the exact amount of the damage but we will be careful, anyway, and ignore the rows where no remarks are made. In short, we change empty entries with "K"s when there are remarks and with "0"s when remarks are missing (missing remarks are noted by two spaces: "  ").  
     e. We will have a final look at the values in **PROPDMGEXP** and **CROPDMGEXP** to make sure we are only left with "K", "M", "B", "0" and "100". We can now change "K" to "1000", "M" to "1000000", "B" to "1000000000" and convert these columns from character to numeric.  
-``` {r economic_consequences_processing_2, cache = TRUE}
+``` {r economic_consequences_processing_2, echo = TRUE}
+library(dplyr)
+
 # 2
 # 2_a
 unique(economic_2$PROPDMGEXP)
@@ -343,7 +353,9 @@ economic_df$CROPDMGEXP <- as.numeric(mgsub(c("K", "M", "B"),
 2. Count total number of event types and total number of damage to property and crop.  
 3. Create **PERCENT** and **PERCENT_CHAR** columns to make our plot more informative.  
 4. Make the plot  
-``` {r economic_preplot, cache = TRUE}
+``` {r economic_preplot, echo = TRUE}
+library(dplyr)
+
 # 1
 economic_plot_df <- economic_df %>% 
         group_by(EVTYPE) %>%
@@ -366,7 +378,9 @@ head(economic_plot_df, 3)
 ```
 
 And we can make our plot.  
-```{r economic_plot, cache = TRUE}
+```{r economic_plot, echo = TRUE}
+library(ggplot2)
+
 # 4 plot
 div = 1000000000
 ggplot(economic_plot_df[1:10,], aes(x = EVTYPE, y = PROP_CROP_DMG/div, fill = EVTYPE)) +

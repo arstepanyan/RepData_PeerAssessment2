@@ -136,7 +136,7 @@ if(!dir.exists(&quot;./NOAA_Storm_Database&quot;)){dir.create(&quot;./NOAA_Storm
 
 # 2
 fileUrl &lt;- &quot;https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2&quot;
-download.file(fileUrl, destfile = &quot;./NOAA_Storm_Database/storm_data.csv.bz2&quot;, method = &quot;curl&quot;)
+if(!file.exists(&quot;./NOAA_STORM_DATABASE/storm_data.csv.bz2&quot;)) {download.file(fileUrl, destfile = &quot;./NOAA_Storm_Database/storm_data.csv.bz2&quot;, method = &quot;curl&quot;)}
 
 # 3
 storm_data &lt;- read.csv(&quot;./NOAA_Storm_Database/storm_data.csv.bz2&quot;)</code></pre>
@@ -204,12 +204,22 @@ storm_data &lt;- read.csv(&quot;./NOAA_Storm_Database/storm_data.csv.bz2&quot;)<
 <li>In the same way as above, create <strong>PERCENT</strong> and <strong>PERCENT_CHAR</strong> columns to make our plot more informative.</li>
 </ol></li>
 </ul>
-<pre class="r"><code>library(dplyr)
-library(lubridate)
-library(ggplot2)
-library(scales)
-
-# 1
+<pre class="r"><code>library(dplyr)</code></pre>
+<pre><code>## 
+## Attaching package: 'dplyr'</code></pre>
+<pre><code>## The following objects are masked from 'package:stats':
+## 
+##     filter, lag</code></pre>
+<pre><code>## The following objects are masked from 'package:base':
+## 
+##     intersect, setdiff, setequal, union</code></pre>
+<pre class="r"><code>library(lubridate)</code></pre>
+<pre><code>## 
+## Attaching package: 'lubridate'</code></pre>
+<pre><code>## The following object is masked from 'package:base':
+## 
+##     date</code></pre>
+<pre class="r"><code># 1
 health_df &lt;- storm_data %&gt;% select(BGN_DATE, EVTYPE, FATALITIES, INJURIES)
 dim(health_df)</code></pre>
 <pre><code>## [1] 902297      4</code></pre>
@@ -328,6 +338,8 @@ dim(health_df_top_5)</code></pre>
 ## # ... with 2 more variables: PERCENT &lt;dbl&gt;, PERCENT_CHAR &lt;chr&gt;</code></pre>
 <p>We have everything we need to make the panel plot.</p>
 <pre class="r"><code># The plot
+library(ggplot2)
+
 div = 1000
 ggplot(health_df_top_5, aes(x = EVTYPE, y = FATALITY_INJURY/div, fill = EVTYPE))+
         facet_wrap(~INTERVAL_YEAR, nrow = 2, scales = &quot;free&quot;) +
@@ -356,6 +368,8 @@ ggplot(health_df_top_5, aes(x = EVTYPE, y = FATALITY_INJURY/div, fill = EVTYPE))
 <strong>2001-2011</strong> - Tornado is again the first harmful event type, but this time Excessive Heat goes up one level from the previous decade and is now the second harmful event (global warming?). And then come Lightning, Tstm Wind, and Thunderstorm Wind.</p>
 <p>We can now move on to see the picture of these 4 intervals taken togetheer.</p>
 <pre class="r"><code># Single Plot
+library(dplyr)
+library(ggplot2)
 
 # a
 health_df_total &lt;- health_df %&gt;% 
@@ -382,6 +396,8 @@ dim(health_df_total)</code></pre>
 ## 3      TSTM WIND            7461  4.792739       4.79 %</code></pre>
 <p>And we have everything needed to see the most harmful events with respect to population health in one single plot.</p>
 <pre class="r"><code># The plot
+library(ggplot2)
+
 div = 1000
 ggplot(health_df_total[1:10,], aes(x = EVTYPE, y = FATALITY_INJURY/div, fill = EVTYPE)) +
         geom_bar(stat = &quot;identity&quot;) +
@@ -417,7 +433,9 @@ ggplot(health_df_total[1:10,], aes(x = EVTYPE, y = FATALITY_INJURY/div, fill = E
 <div id="creating-the-initial-data-frame-called-economic_df" class="section level4">
 <h4>Creating the initial data frame called <strong>economic_df</strong></h4>
 <p>We need 6 columns (EVTYPE, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP, REMARKS).</p>
-<pre class="r"><code>economic_df &lt;- storm_data %&gt;%
+<pre class="r"><code>library(dplyr)
+
+economic_df &lt;- storm_data %&gt;%
         select(EVTYPE, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP, REMARKS)
 dim(economic_df)</code></pre>
 <pre><code>## [1] 902297      6</code></pre>
@@ -450,7 +468,9 @@ dim(economic_df)</code></pre>
 <li>We now hope that we will have fewer rows to worry about. And we are right. Let’s check how many rows of <strong>PROPDMGEXP</strong> and <strong>CROPDMGEXP</strong> are left that have values other then “K”, “M”, “B”, and “0”.</li>
 </ol></li>
 </ol>
-<pre class="r"><code># 1
+<pre class="r"><code>library(dplyr)
+
+# 1
 # 1_a
 economic_df$PROPDMGEXP &lt;- as.character(economic_df$PROPDMGEXP)
 economic_df$CROPDMGEXP &lt;- as.character(economic_df$CROPDMGEXP)
@@ -506,7 +526,9 @@ dim(economic_2)</code></pre>
 <li>We will have a final look at the values in <strong>PROPDMGEXP</strong> and <strong>CROPDMGEXP</strong> to make sure we are only left with “K”, “M”, “B”, “0” and “100”. We can now change “K” to “1000”, “M” to “1000000”, “B” to “1000000000” and convert these columns from character to numeric.</li>
 </ol></li>
 </ol>
-<pre class="r"><code># 2
+<pre class="r"><code>library(dplyr)
+
+# 2
 # 2_a
 unique(economic_2$PROPDMGEXP)</code></pre>
 <pre><code>##  [1] &quot;m&quot; &quot;+&quot; &quot;5&quot; &quot;6&quot; &quot;4&quot; &quot;h&quot; &quot;2&quot; &quot;7&quot; &quot;3&quot; &quot;H&quot; &quot;-&quot;</code></pre>
@@ -877,7 +899,9 @@ economic_df$CROPDMGEXP &lt;- as.numeric(mgsub(c(&quot;K&quot;, &quot;M&quot;, &q
 </li>
 <li>Make the plot</li>
 </ol>
-<pre class="r"><code># 1
+<pre class="r"><code>library(dplyr)
+
+# 1
 economic_plot_df &lt;- economic_df %&gt;% 
         group_by(EVTYPE) %&gt;%
         summarise(PROP = sum(PROPDMG * PROPDMGEXP), CROP = sum(CROPDMG * CROPDMGEXP)) %&gt;%
@@ -911,7 +935,9 @@ dim(economic_plot_df)</code></pre>
 ## 3           TORNADO  56937163480  414953110   57352116590 12.03806
 ## # ... with 1 more variables: PERCENT_CHAR &lt;chr&gt;</code></pre>
 <p>And we can make our plot.</p>
-<pre class="r"><code># 4 plot
+<pre class="r"><code>library(ggplot2)
+
+# 4 plot
 div = 1000000000
 ggplot(economic_plot_df[1:10,], aes(x = EVTYPE, y = PROP_CROP_DMG/div, fill = EVTYPE)) +
         geom_bar(stat = &quot;identity&quot;) +
