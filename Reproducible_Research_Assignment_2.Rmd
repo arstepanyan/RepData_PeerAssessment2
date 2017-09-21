@@ -1,4 +1,11 @@
-# Most Harmfull Events Across United States From 1950 To 2011
+---
+title: "Most Harmfull Events Across United States From 1950 To 2011"
+author: "Araks Stepanyan"
+date: "06/19/2017"
+output:
+  pdf_document: default
+  html_document: default
+---
 
 ## Synopsis
 
